@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Rappidex Integration Module",
+  "version": "0.1.0",
+  "description": "Intercepts browser downloads and video streams and sends them to Rappidex Download Manager.",
+  "permissions": ["downloads", "cookies", "tabs", "storage"],
+  "host_permissions": ["<all_urls>", "http://127.0.0.1:41920/*"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
+
