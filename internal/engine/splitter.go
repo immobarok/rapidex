@@ -2,18 +2,21 @@ package engine
 
 import "rappidex/internal/models"
 
-const MinSplitBytes int64 = 512 * 1024 // 512 KB minimum chunk size for dynamic splitting
+const (
+	MinInitialChunk int64 = 256 * 1024 // don't open a connection for less than this at start
+	MinSplitBytes   int64 = 512 * 1024 // a part must have at least 2x this left to be split
+)
 
-// SplitInitial divides a file of totalSize into numConns initial byte ranges.
+// SplitInitial divides a file into equal starting parts (one per connection).
 func SplitInitial(totalSize int64, numConns int) []models.ChunkState {
-	if totalSize <= 0 || numConns <= 1 {
-		return []models.ChunkState{{
-			ID:         0,
-			StartByte:  0,
-			CurrentPos: 0,
-			EndByte:    totalSize - 1,
-			Active:     true,
-		}}
+	if totalSize <= 0 {
+		return []models.ChunkState{{ID: 0, StartByte: 0, CurrentPos: 0, EndByte: -1}}
+	}
+	if numConns < 1 {
+		numConns = 1
+	}
+	if byMin := int(totalSize / MinInitialChunk); byMin < numConns {
+		numConns = max(1, byMin)
 	}
 
 	chunkSize := totalSize / int64(numConns)
@@ -24,26 +27,24 @@ func SplitInitial(totalSize int64, numConns int) []models.ChunkState {
 		if i == numConns-1 {
 			end = totalSize - 1
 		}
-		chunks = append(chunks, models.ChunkState{
-			ID:         i,
-			StartByte:  start,
-			CurrentPos: start,
-			EndByte:    end,
-			Active:     true,
-		})
+		chunks = append(chunks, models.ChunkState{ID: i, StartByte: start, CurrentPos: start, EndByte: end})
 	}
 	return chunks
 }
 
-// StealWork finds the active chunk with the largest remaining bytes and splits it in half
-// (IDM's signature dynamic in-flight segmentation).
+// StealWork implements IDM-style dynamic segmentation: when a connection becomes free,
+// the part with the most bytes left is split in half and the free connection takes the second half.
 func StealWork(chunks []models.ChunkState, nextID int) *models.ChunkState {
 	largestIdx := -1
 	var maxRemaining int64
 
 	for i := range chunks {
-		rem := chunks[i].EndByte - chunks[i].CurrentPos
-		if chunks[i].Active && rem > maxRemaining {
+		c := chunks[i]
+		if !c.Active || c.EndByte < 0 || c.Done() {
+			continue
+		}
+		rem := c.EndByte - c.CurrentPos + 1
+		if rem > maxRemaining {
 			maxRemaining = rem
 			largestIdx = i
 		}
@@ -54,15 +55,13 @@ func StealWork(chunks []models.ChunkState, nextID int) *models.ChunkState {
 	}
 
 	target := &chunks[largestIdx]
-	mid := target.CurrentPos + (maxRemaining / 2)
+	mid := target.CurrentPos + maxRemaining/2
 	newChunk := models.ChunkState{
 		ID:         nextID,
 		StartByte:  mid + 1,
 		CurrentPos: mid + 1,
 		EndByte:    target.EndByte,
-		Active:     true,
 	}
 	target.EndByte = mid
 	return &newChunk
 }
-

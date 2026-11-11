@@ -1,10 +1,9 @@
 package engine
 
 import (
-	"fmt"
+	"context"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"rappidex/internal/engine/protocols"
@@ -17,15 +16,15 @@ type ProbeResult struct {
 	ContentType  string `json:"contentType"`
 	TotalSize    int64  `json:"totalSize"`
 	AcceptRanges bool   `json:"acceptRanges"`
+	IsWebPage    bool   `json:"isWebPage"`
 }
 
-// Probe inspects a URL (including YouTube links) using a lightweight Range GET ("bytes=0-0"),
-// resolves the real filename with extension, and checks multi-connection byte range support.
-func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
+// Probe reads file information (final address after redirects, name, size, resume support)
+// using a tiny "Range: bytes=0-0" request, exactly like IDM's "Download File Info" step.
+func Probe(ctx context.Context, client *http.Client, rawURL string, headers map[string]string) (*ProbeResult, error) {
 	var presetFileName string
 	var presetSize int64
 
-	// 1. If the user pasted a YouTube video link, resolve the direct MP4 video stream first!
 	if protocols.IsYouTubeURL(rawURL) {
 		ytInfo, err := protocols.ExtractYouTubeStream(rawURL)
 		if err != nil {
@@ -36,61 +35,55 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 		presetSize = ytInfo.TotalSize
 	}
 
-	client := protocols.NewHTTPClient()
-
-	getReq, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	getReq.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-	for k, v := range headers {
-		getReq.Header.Set(k, v)
-	}
-	getReq.Header.Set("Range", "bytes=0-0")
+	applyHeaders(req, headers)
+	req.Header.Set("Range", "bytes=0-0")
 
-	getResp, err := client.Do(getReq)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		_, _ = io.Copy(io.Discard, io.LimitReader(getResp.Body, 4096))
-		_ = getResp.Body.Close()
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		_ = resp.Body.Close()
 	}()
 
-	if getResp.StatusCode >= 400 {
-		return nil, fmt.Errorf("server returned HTTP %d (%s)", getResp.StatusCode, http.StatusText(getResp.StatusCode))
+	if resp.StatusCode >= 400 {
+		return nil, &HTTPStatusError{Code: resp.StatusCode}
 	}
 
-	finalURL := getResp.Request.URL.String()
-	contentType := getResp.Header.Get("Content-Type")
-	totalSize := getResp.ContentLength
-	acceptRanges := getResp.StatusCode == http.StatusPartialContent || strings.EqualFold(getResp.Header.Get("Accept-Ranges"), "bytes")
+	finalURL := resp.Request.URL.String()
+	contentType := resp.Header.Get("Content-Type")
+	totalSize := int64(-1)
+	acceptRanges := false
 
-	if cr := getResp.Header.Get("Content-Range"); cr != "" {
-		// e.g. "bytes 0-0/158008374"
-		if slashIdx := strings.LastIndex(cr, "/"); slashIdx != -1 {
-			if parsed, parseErr := strconv.ParseInt(strings.TrimSpace(cr[slashIdx+1:]), 10, 64); parseErr == nil && parsed > 0 {
-				totalSize = parsed
-				acceptRanges = true
-			}
+	if resp.StatusCode == http.StatusPartialContent {
+		if _, total, ok := parseContentRange(resp.Header.Get("Content-Range")); ok && total > 0 {
+			totalSize = total
+			acceptRanges = true
 		}
+	} else if resp.ContentLength > 0 {
+		totalSize = resp.ContentLength
+		acceptRanges = strings.EqualFold(resp.Header.Get("Accept-Ranges"), "bytes")
 	}
 
-	if totalSize <= 1 && presetSize > 0 {
+	if totalSize <= 0 && presetSize > 0 {
 		totalSize = presetSize
 	}
 
-	// Fallback HEAD check if Content-Length was still 1 or unknown
-	if totalSize <= 1 {
-		headReq, headErr := http.NewRequest(http.MethodHead, finalURL, nil)
-		if headErr == nil {
-			headReq.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-			if headResp, doErr := client.Do(headReq); doErr == nil {
-				if headResp.ContentLength > 0 {
+	// Some servers only expose the size on HEAD.
+	if totalSize <= 0 {
+		if headReq, herr := http.NewRequestWithContext(ctx, http.MethodHead, finalURL, nil); herr == nil {
+			applyHeaders(headReq, headers)
+			if headResp, derr := client.Do(headReq); derr == nil {
+				if headResp.StatusCode < 400 && headResp.ContentLength > 0 {
 					totalSize = headResp.ContentLength
-				}
-				if strings.EqualFold(headResp.Header.Get("Accept-Ranges"), "bytes") {
-					acceptRanges = true
+					if strings.EqualFold(headResp.Header.Get("Accept-Ranges"), "bytes") {
+						acceptRanges = true
+					}
 				}
 				_ = headResp.Body.Close()
 			}
@@ -99,16 +92,20 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 
 	fileName := presetFileName
 	if fileName == "" {
-		fileName = netutil.ExtractFilename(finalURL, getResp.Header.Get("Content-Disposition"), contentType)
+		fileName = netutil.ExtractFilename(finalURL, resp.Header.Get("Content-Disposition"), contentType)
 	} else {
 		fileName = netutil.EnsureExtension(fileName, contentType)
 	}
+
+	ct := strings.ToLower(contentType)
+	isWebPage := strings.HasPrefix(ct, "text/html") || strings.HasPrefix(ct, "application/xhtml")
 
 	return &ProbeResult{
 		URL:          finalURL,
 		FileName:     fileName,
 		ContentType:  contentType,
 		TotalSize:    totalSize,
-		AcceptRanges: acceptRanges,
+		AcceptRanges: acceptRanges && totalSize > 0,
+		IsWebPage:    isWebPage,
 	}, nil
 }

@@ -151,3 +151,4 @@ func (r *QueueRepo) SetRunning(id string, running bool) error {
 	}
 	return fmt.Errorf("queue not found")
 }
+

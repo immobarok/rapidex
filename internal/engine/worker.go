@@ -7,122 +7,161 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"rappidex/internal/models"
 )
 
-// Worker downloads a specific byte range [StartByte..EndByte] using HTTP Range requests.
+// Worker downloads one part of the file over its own HTTP connection.
+// Bytes are written to disk first; the part's CurrentPos is only advanced afterwards,
+// so the saved progress never claims bytes that are not on disk (safe resume after a crash).
 type Worker struct {
-	ID            int
-	URL           string
-	Headers       map[string]string
-	AcceptRanges  bool
-	GetChunk      func() *models.ChunkState
-	ChunkMu       *sync.Mutex
-	File          *os.File
-	Limiter       *BandwidthLimiter
-	Client        *http.Client
-	OnBytesLoaded func(n int64)
+	URL          string
+	Headers      map[string]string
+	UseRange     bool
+	Client       *http.Client
+	File         *os.File
+	Mu           *sync.Mutex
+	Chunk        func() *models.ChunkState // must be called with Mu held
+	Limiters     []*BandwidthLimiter
+	OnBytes      func(n int64)
+	StallTimeout time.Duration
 }
 
-func (w *Worker) Run(ctx context.Context) error {
-	w.ChunkMu.Lock()
-	ch := w.GetChunk()
-	startPos := ch.CurrentPos
-	endPos := ch.EndByte
-	ch.Active = true
-	w.ChunkMu.Unlock()
+func (w *Worker) Run(parent context.Context) error {
+	w.Mu.Lock()
+	ch := w.Chunk()
+	start := ch.CurrentPos
+	end := ch.EndByte
+	w.Mu.Unlock()
 
-	defer func() {
-		w.ChunkMu.Lock()
-		w.GetChunk().Active = false
-		w.ChunkMu.Unlock()
-	}()
-
-	if endPos > 0 && startPos > endPos {
+	if end >= 0 && start > end {
 		return nil
 	}
+
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+
+	stallTimeout := w.StallTimeout
+	if stallTimeout <= 0 {
+		stallTimeout = 30 * time.Second
+	}
+	var stalled atomic.Bool
+	watchdog := time.AfterFunc(stallTimeout, func() {
+		stalled.Store(true)
+		cancel()
+	})
+	defer watchdog.Stop()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, w.URL, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-	for k, v := range w.Headers {
-		req.Header.Set(k, v)
+	applyHeaders(req, w.Headers)
+	if w.UseRange {
+		if end >= 0 {
+			req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+		} else if start > 0 {
+			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", start))
+		}
 	}
 
-	if w.AcceptRanges && endPos > 0 {
-		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", startPos, endPos))
-	}
-
-	client := w.Client
-	if client == nil {
-		client = http.DefaultClient
-	}
-
-	resp, err := client.Do(req)
+	resp, err := w.Client.Do(req)
 	if err != nil {
+		if stalled.Load() {
+			return errStalled
+		}
 		return err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
-		return fmt.Errorf("server returned HTTP %s", resp.Status)
-	}
-
-	// If we requested a byte range beyond 0, but the server ignored Range and returned 200 OK from byte 0,
-	// stop this secondary worker immediately so it doesn't corrupt the file offset.
-	if w.AcceptRanges && startPos > 0 && resp.StatusCode == http.StatusOK {
-		return nil
+	switch resp.StatusCode {
+	case http.StatusPartialContent:
+		if s, _, ok := parseContentRange(resp.Header.Get("Content-Range")); ok && s != start {
+			return fmt.Errorf("server returned the wrong part of the file (asked for byte %d, got %d)", start, s)
+		}
+	case http.StatusOK:
+		if start > 0 {
+			// The server is sending the whole file from byte 0: we must not write it at our offset.
+			return errRangeIgnored
+		}
+	case http.StatusRequestedRangeNotSatisfiable:
+		if end >= 0 {
+			return nil // nothing left for this part
+		}
+		return &HTTPStatusError{Code: resp.StatusCode}
+	default:
+		return &HTTPStatusError{Code: resp.StatusCode}
 	}
 
 	buf := make([]byte, 64*1024)
+	pos := start
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
-			w.ChunkMu.Lock()
-			chunk := w.GetChunk()
-			curr := chunk.CurrentPos
-			dynamicEnd := chunk.EndByte
-			if dynamicEnd > 0 && curr+int64(n)-1 > dynamicEnd {
-				allowed := dynamicEnd - curr + 1
-				if allowed <= 0 {
-					w.ChunkMu.Unlock()
+			watchdog.Reset(stallTimeout)
+
+			// The part may have been shortened by work stealing; never write past its end.
+			w.Mu.Lock()
+			curEnd := w.Chunk().EndByte
+			w.Mu.Unlock()
+			if curEnd >= 0 && pos+int64(n)-1 > curEnd {
+				n = int(curEnd - pos + 1)
+				if n <= 0 {
 					return nil
 				}
-				n = int(allowed)
-			}
-			chunk.CurrentPos += int64(n)
-			w.ChunkMu.Unlock()
-
-			if w.Limiter != nil {
-				w.Limiter.Wait(ctx, int64(n))
 			}
 
-			if _, writeErr := w.File.WriteAt(buf[:n], curr); writeErr != nil {
-				return writeErr
+			for _, l := range w.Limiters {
+				l.Wait(ctx, int64(n))
+			}
+			if ctx.Err() != nil {
+				if stalled.Load() {
+					return errStalled
+				}
+				return ctx.Err()
 			}
 
-			if w.OnBytesLoaded != nil {
-				w.OnBytesLoaded(int64(n))
+			if _, err := w.File.WriteAt(buf[:n], pos); err != nil {
+				return fmt.Errorf("could not write to disk: %w", err)
 			}
+			pos += int64(n)
 
-			if dynamicEnd > 0 && curr+int64(n)-1 >= dynamicEnd {
+			w.Mu.Lock()
+			c := w.Chunk()
+			newPos := pos
+			if c.EndByte >= 0 && newPos > c.EndByte+1 {
+				newPos = c.EndByte + 1
+			}
+			if newPos > c.CurrentPos {
+				c.CurrentPos = newPos
+			}
+			done := c.Done()
+			w.Mu.Unlock()
+
+			if w.OnBytes != nil {
+				w.OnBytes(int64(n))
+			}
+			if done {
 				return nil
 			}
 		}
 
 		if readErr == io.EOF {
+			w.Mu.Lock()
+			c := w.Chunk()
+			incomplete := c.EndByte >= 0 && !c.Done()
+			w.Mu.Unlock()
+			if incomplete {
+				return io.ErrUnexpectedEOF
+			}
 			return nil
 		}
 		if readErr != nil {
+			if stalled.Load() {
+				return errStalled
+			}
 			return readErr
 		}
 	}
