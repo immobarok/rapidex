@@ -22,7 +22,7 @@ func TestMultiConnectionDownloadAndWorkStealing(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	db, err := storage.NewDatabase()
+	db, err := storage.NewDatabaseAt(t.TempDir())
 	if err != nil {
 		t.Fatalf("failed to create db: %v", err)
 	}
@@ -55,4 +55,3 @@ func TestMultiConnectionDownloadAndWorkStealing(t *testing.T) {
 		t.Fatalf("downloaded file mismatch: got %d bytes, want %d bytes", len(downloadedBytes), len(payload))
 	}
 }
-

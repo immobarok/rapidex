@@ -38,19 +38,19 @@ func main() {
 	extServer := server.NewExtensionServer(eng, "127.0.0.1:41920")
 
 	// 5. Initialize Wails Application & Handlers
-	application := app.NewApp(eng, sched, extServer)
+	application := app.NewApp(db, eng, sched, extServer)
 	downloadHandler := handlers.NewDownloadHandler(eng)
 	queueHandler := handlers.NewQueueHandler(sched)
 	categoryHandler := handlers.NewCategoryHandler(db)
 	settingsHandler := handlers.NewSettingsHandler(db, eng)
 
-	// 6. Launch Native Wails Desktop Window (Clean White Theme)
+	// 6. Launch Native Wails Desktop Window
 	err = wails.Run(&options.App{
 		Title:     "Rappidex Download Manager",
-		Width:     1120,
-		Height:    700,
-		MinWidth:  880,
-		MinHeight: 540,
+		Width:     1160,
+		Height:    720,
+		MinWidth:  900,
+		MinHeight: 560,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -65,7 +65,7 @@ func main() {
 			settingsHandler,
 		},
 		Mac: &mac.Options{
-			TitleBar: mac.TitleBarDefault(),
+			TitleBar:   mac.TitleBarDefault(),
 			Appearance: mac.NSAppearanceNameAqua,
 			About: &mac.AboutInfo{
 				Title:   "Rappidex Download Manager",

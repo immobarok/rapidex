@@ -9,21 +9,28 @@ import (
 	"rappidex/internal/models"
 	"rappidex/internal/scheduler"
 	"rappidex/internal/server"
+	"rappidex/internal/storage"
 )
 
 type App struct {
 	ctx       context.Context
+	db        *storage.Database
 	engine    *engine.Manager
 	scheduler *scheduler.Scheduler
 	extServer *server.ExtensionServer
 }
 
-func NewApp(eng *engine.Manager, sched *scheduler.Scheduler, ext *server.ExtensionServer) *App {
+func NewApp(db *storage.Database, eng *engine.Manager, sched *scheduler.Scheduler, ext *server.ExtensionServer) *App {
 	return &App{
+		db:        db,
 		engine:    eng,
 		scheduler: sched,
 		extServer: ext,
 	}
+}
+
+func (a *App) engineSettings() storage.AppSettings {
+	return a.db.Settings().Get()
 }
 
 func (a *App) Startup(ctx context.Context) {
@@ -34,7 +41,13 @@ func (a *App) Startup(ctx context.Context) {
 		runtime.EventsEmit(ctx, "downloads:update", items)
 	})
 
+	// Emit download completion event (for IDM's "Download Complete" dialog)
+	a.engine.SetCompletedCallback(func(item *models.DownloadItem) {
+		runtime.EventsEmit(ctx, "download:completed", item)
+	})
+
 	go a.engine.StartProgressEmitter(ctx)
+	go a.scheduler.Start(ctx)
 	go a.extServer.Start(ctx)
 	go a.startClipboardMonitor(ctx)
 }
