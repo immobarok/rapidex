@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,36 +19,12 @@ type ProbeResult struct {
 	AcceptRanges bool   `json:"acceptRanges"`
 }
 
-// Probe inspects a URL via HTTP HEAD (with Range GET fallback for servers blocking HEAD)
-// to determine filename, exact byte size, and multi-connection Range capability.
+// Probe inspects a URL using a lightweight Range GET ("bytes=0-0") first,
+// which reliably follows HTTP->HTTPS redirects, extracts total file size from Content-Range,
+// and verifies whether the server supports multi-connection byte ranges.
 func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 	client := protocols.NewHTTPClient()
 
-	req, err := http.NewRequest(http.MethodHead, rawURL, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
-
-	resp, err := client.Do(req)
-	if err == nil {
-		defer resp.Body.Close()
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 && resp.ContentLength > 0 {
-			finalURL := resp.Request.URL.String()
-			return &ProbeResult{
-				URL:          finalURL,
-				FileName:     netutil.ExtractFilename(finalURL, resp.Header.Get("Content-Disposition")),
-				ContentType:  resp.Header.Get("Content-Type"),
-				TotalSize:    resp.ContentLength,
-				AcceptRanges: strings.EqualFold(resp.Header.Get("Accept-Ranges"), "bytes"),
-			}, nil
-		}
-	}
-
-	// Fallback: send GET with Range: bytes=0-0 (many CDNs/presigned URLs reject HEAD or omit Content-Length on HEAD)
 	getReq, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
@@ -62,7 +39,10 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer getResp.Body.Close()
+	defer func() {
+		_, _ = io.Copy(io.Discard, io.LimitReader(getResp.Body, 4096))
+		_ = getResp.Body.Close()
+	}()
 
 	if getResp.StatusCode >= 400 {
 		return nil, fmt.Errorf("server returned HTTP %d (%s)", getResp.StatusCode, http.StatusText(getResp.StatusCode))
@@ -73,11 +53,28 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 	acceptRanges := getResp.StatusCode == http.StatusPartialContent || strings.EqualFold(getResp.Header.Get("Accept-Ranges"), "bytes")
 
 	if cr := getResp.Header.Get("Content-Range"); cr != "" {
-		// e.g. "bytes 0-0/104857600"
+		// e.g. "bytes 0-0/158008374"
 		if slashIdx := strings.LastIndex(cr, "/"); slashIdx != -1 {
-			if parsed, parseErr := strconv.ParseInt(cr[slashIdx+1:], 10, 64); parseErr == nil && parsed > 0 {
+			if parsed, parseErr := strconv.ParseInt(strings.TrimSpace(cr[slashIdx+1:]), 10, 64); parseErr == nil && parsed > 0 {
 				totalSize = parsed
 				acceptRanges = true
+			}
+		}
+	}
+
+	// If server ignored Range and didn't send Content-Length on GET, try HEAD as fallback
+	if totalSize <= 1 {
+		headReq, headErr := http.NewRequest(http.MethodHead, finalURL, nil)
+		if headErr == nil {
+			headReq.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+			if headResp, doErr := client.Do(headReq); doErr == nil {
+				if headResp.ContentLength > 0 {
+					totalSize = headResp.ContentLength
+				}
+				if strings.EqualFold(headResp.Header.Get("Accept-Ranges"), "bytes") {
+					acceptRanges = true
+				}
+				_ = headResp.Body.Close()
 			}
 		}
 	}

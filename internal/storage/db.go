@@ -13,11 +13,10 @@ type Database struct {
 }
 
 func NewDatabase() (*Database, error) {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		configDir = "."
+	dataDir := filepath.Join(".", ".rappidex-data")
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		dataDir = filepath.Join(home, ".rappidex")
 	}
-	dataDir := filepath.Join(configDir, "Rappidex")
 
 	return &Database{
 		downloads:  NewDownloadRepo(dataDir),

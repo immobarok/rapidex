@@ -68,10 +68,16 @@ func (w *Worker) Run(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
-		return fmt.Errorf("unexpected HTTP status: %s", resp.Status)
+		return fmt.Errorf("server returned HTTP %s", resp.Status)
 	}
 
-	buf := make([]byte, 32*1024)
+	// If we requested a byte range beyond 0, but the server ignored Range and returned 200 OK from byte 0,
+	// stop this secondary worker immediately so it doesn't corrupt the file offset.
+	if w.AcceptRanges && startPos > 0 && resp.StatusCode == http.StatusOK {
+		return nil
+	}
+
+	buf := make([]byte, 64*1024)
 	for {
 		select {
 		case <-ctx.Done():

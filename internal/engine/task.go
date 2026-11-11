@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -63,9 +64,9 @@ func (t *Task) Start() {
 }
 
 func (t *Task) run(ctx context.Context) {
-	// 1. Probe URL if metadata is not yet resolved
+	// 1. Always re-probe if TotalSize <= 1024 (e.g. a previous failed redirect/error page) or filename is empty
 	t.mu.Lock()
-	needProbe := t.Item.TotalSize <= 0 || t.Item.FileName == ""
+	needProbe := t.Item.TotalSize <= 1024 || t.Item.FileName == ""
 	rawURL := t.Item.URL
 	headers := t.Item.Headers
 	t.mu.Unlock()
@@ -82,6 +83,10 @@ func (t *Task) run(ctx context.Context) {
 		}
 		if t.Item.FileName == "" {
 			t.Item.FileName = probe.FileName
+		}
+		// Reset stale chunks if size changed
+		if t.Item.TotalSize != probe.TotalSize {
+			t.Item.Chunks = nil
 		}
 		t.Item.TotalSize = probe.TotalSize
 		t.Item.AcceptRanges = probe.AcceptRanges
@@ -220,6 +225,16 @@ func (t *Task) run(ctx context.Context) {
 	}
 	if firstErr != nil {
 		t.fail(firstErr)
+		return
+	}
+
+	t.mu.Lock()
+	downloadedNow := t.Item.Downloaded
+	expectedSize := t.Item.TotalSize
+	t.mu.Unlock()
+
+	if downloadedNow == 0 && expectedSize > 0 {
+		t.fail(fmt.Errorf("0 bytes received from server"))
 		return
 	}
 
