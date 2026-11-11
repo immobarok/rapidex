@@ -1,25 +1,132 @@
 import React from 'react';
+import { ExternalLink } from 'lucide-react';
+import { useDownloadStore } from '../../store/useDownloadStore';
+import { formatBytes, formatETA } from '../../utils/formatters';
+import { ChunkVisualizer } from '../widgets/ChunkVisualizer';
 
-export const DownloadTable: React.FC = () => (
-  <main style={{ flex: 1, padding: 16, overflow: 'auto' }}>
-    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-      <thead>
-        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-          <th>File Name</th>
-          <th>Size</th>
-          <th>Status</th>
-          <th>Time Left</th>
-          <th>Transfer Rate</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
-            No downloads yet. Click "+ Add URL" to start.
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </main>
-);
+export const DownloadTable: React.FC = () => {
+  const {
+    downloads,
+    selectedId,
+    activeCategory,
+    searchQuery,
+    setSelectedId,
+    setInspectingDownloadId,
+  } = useDownloadStore();
 
+  const filtered = downloads.filter((item) => {
+    if (activeCategory === 'unfinished' && item.status === 'completed') return false;
+    if (activeCategory === 'finished' && item.status !== 'completed') return false;
+    if (
+      activeCategory !== 'all' &&
+      activeCategory !== 'unfinished' &&
+      activeCategory !== 'finished' &&
+      !activeCategory.startsWith('queue:') &&
+      item.categoryId !== activeCategory
+    ) {
+      return false;
+    }
+    if (searchQuery && !item.fileName.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    return true;
+  });
+
+  return (
+    <main className="flex-1 flex flex-col bg-slate-950 overflow-hidden">
+      <div className="flex-1 overflow-auto">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead className="sticky top-0 bg-slate-900/95 border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-400 select-none z-10">
+            <tr>
+              <th className="py-2.5 px-4 font-semibold">File Name</th>
+              <th className="py-2.5 px-3 font-semibold w-28">Size</th>
+              <th className="py-2.5 px-3 font-semibold w-52">Progress & Chunks</th>
+              <th className="py-2.5 px-3 font-semibold w-28">Status</th>
+              <th className="py-2.5 px-3 font-semibold w-28">Transfer Rate</th>
+              <th className="py-2.5 px-3 font-semibold w-24">ETA</th>
+              <th className="py-2.5 px-3 font-semibold w-16 text-center">Details</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-900">
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-16 text-center text-slate-500">
+                  No downloads matching filter. Click <strong>+ Add URL</strong> to start a new multi-connection download.
+                </td>
+              </tr>
+            ) : (
+              filtered.map((item) => {
+                const isSelected = item.id === selectedId;
+                const pct =
+                  item.totalSize > 0
+                    ? Math.min(100, Math.round((item.downloaded / item.totalSize) * 100))
+                    : 0;
+                const remainingBytes = Math.max(0, item.totalSize - item.downloaded);
+                const etaSec = item.speedBps > 0 ? remainingBytes / item.speedBps : 0;
+
+                return (
+                  <tr
+                    key={item.id}
+                    onClick={() => setSelectedId(item.id)}
+                    onDoubleClick={() => setInspectingDownloadId(item.id)}
+                    className={`cursor-pointer transition ${
+                      isSelected
+                        ? 'bg-blue-600/15 text-slate-100'
+                        : 'hover:bg-slate-900/60 text-slate-300'
+                    }`}
+                  >
+                    <td className="py-2.5 px-4 font-medium truncate max-w-xs" title={item.fileName}>
+                      <div>{item.fileName}</div>
+                      <div className="text-[10px] text-slate-500 truncate">{item.url}</div>
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-400">
+                      {formatBytes(item.totalSize)}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center justify-between text-[10px] mb-1 font-mono text-slate-400">
+                        <span>{pct}%</span>
+                        <span>{item.maxConns} conns</span>
+                      </div>
+                      <ChunkVisualizer chunks={item.chunks} />
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium capitalize ${
+                          item.status === 'downloading'
+                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                            : item.status === 'completed'
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                        }`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-emerald-400">
+                      {item.speedBps > 0 ? `${formatBytes(item.speedBps)}/s` : '--'}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-400">
+                      {item.status === 'downloading' ? formatETA(etaSec) : '--'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInspectingDownloadId(item.id);
+                        }}
+                        title="Open IDM Progress Window"
+                        className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </main>
+  );
+};

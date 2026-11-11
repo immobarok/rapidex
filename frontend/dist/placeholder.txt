@@ -1,2 +1,0 @@
-Rappidex frontend dist placeholder for Go embed.
-
