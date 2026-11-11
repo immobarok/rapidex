@@ -33,14 +33,14 @@ export const Toolbar: React.FC = () => {
 
   return (
     <header className="flex items-center justify-between px-4 py-2.5 bg-white border-b border-slate-200">
-      {/* Left Action Buttons */}
+      {/* Left Action Buttons — Friendly, everyday labels */}
       <div className="flex items-center gap-1.5">
         <button
           onClick={() => setAddModalOpen(true)}
           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-medium shadow-xs transition cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
-          Add URL
+          New Download
         </button>
 
         <div className="h-5 w-px bg-slate-200 mx-1" />
@@ -58,7 +58,7 @@ export const Toolbar: React.FC = () => {
           ) : (
             <>
               <Play className="w-3.5 h-3.5 text-emerald-600" />
-              Resume
+              Continue
             </>
           )}
         </button>
@@ -68,7 +68,7 @@ export const Toolbar: React.FC = () => {
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition cursor-pointer"
         >
           <Square className="w-3.5 h-3.5 text-rose-600" />
-          Stop All
+          Pause All
         </button>
 
         <button
@@ -77,7 +77,7 @@ export const Toolbar: React.FC = () => {
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 text-xs font-medium transition cursor-pointer disabled:cursor-not-allowed"
         >
           <FolderOpen className="w-3.5 h-3.5 text-blue-600" />
-          Open Folder
+          Show in Folder
         </button>
 
         <button
@@ -96,7 +96,7 @@ export const Toolbar: React.FC = () => {
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition cursor-pointer"
         >
           <CalendarClock className="w-3.5 h-3.5 text-indigo-600" />
-          Queues
+          Auto-Schedule
         </button>
 
         <button
@@ -104,7 +104,7 @@ export const Toolbar: React.FC = () => {
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition cursor-pointer"
         >
           <Settings className="w-3.5 h-3.5 text-slate-600" />
-          Options
+          Settings
         </button>
       </div>
 
@@ -115,7 +115,7 @@ export const Toolbar: React.FC = () => {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search downloads..."
+          placeholder="Find a file..."
           className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 transition"
         />
       </div>

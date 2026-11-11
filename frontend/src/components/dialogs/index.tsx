@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { X, Link2, Cpu, CalendarClock, Settings, FolderOpen, Loader2, CheckCircle2 } from 'lucide-react';
+import {
+  X,
+  Link2,
+  Gauge,
+  CalendarClock,
+  Settings,
+  FolderOpen,
+  Loader2,
+  CheckCircle2,
+} from 'lucide-react';
 import { useDownloadStore } from '../../store/useDownloadStore';
 import { formatBytes, formatETA } from '../../utils/formatters';
 import { backendAPI, ProbeResult } from '../../utils/wailsBridge';
@@ -70,7 +79,7 @@ export const AddUrlModal: React.FC = () => {
         <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
           <h3 className="text-xs font-semibold text-slate-800 flex items-center gap-2">
             <Link2 className="w-4 h-4 text-blue-600" />
-            Add New Download
+            Start a New Download
           </h3>
           <button
             onClick={() => setAddModalOpen(false)}
@@ -82,7 +91,9 @@ export const AddUrlModal: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="p-4 space-y-3.5 text-xs">
           <div>
-            <label className="block font-medium text-slate-700 mb-1">Download URL (HTTP / HTTPS)</label>
+            <label className="block font-medium text-slate-700 mb-1">
+              Paste File Link (Web Address)
+            </label>
             <div className="flex gap-2">
               <input
                 type="url"
@@ -91,7 +102,7 @@ export const AddUrlModal: React.FC = () => {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onBlur={() => handleProbe(url.trim())}
-                placeholder="https://releases.ubuntu.com/..."
+                placeholder="https://example.com/movie.mp4"
                 className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-blue-600"
               />
               <button
@@ -100,7 +111,7 @@ export const AddUrlModal: React.FC = () => {
                 onClick={() => handleProbe(url.trim())}
                 className="px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-medium disabled:opacity-50 cursor-pointer"
               >
-                {probing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Check URL'}
+                {probing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Verify Link'}
               </button>
             </div>
           </div>
@@ -111,10 +122,16 @@ export const AddUrlModal: React.FC = () => {
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span className="font-medium truncate">{probeInfo.fileName}</span>
               </div>
-              <div className="flex items-center gap-3 font-mono shrink-0">
-                <span>{probeInfo.totalSize > 0 ? formatBytes(probeInfo.totalSize) : 'Unknown size'}</span>
-                <span className={probeInfo.acceptRanges ? 'text-emerald-700 font-semibold' : 'text-amber-700'}>
-                  {probeInfo.acceptRanges ? 'Multi-Conn Supported' : 'Single Stream'}
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="font-mono">
+                  {probeInfo.totalSize > 0 ? formatBytes(probeInfo.totalSize) : 'Size unknown'}
+                </span>
+                <span
+                  className={
+                    probeInfo.acceptRanges ? 'text-emerald-700 font-semibold' : 'text-amber-700'
+                  }
+                >
+                  {probeInfo.acceptRanges ? 'Fast Boost Ready' : 'Standard Speed'}
                 </span>
               </div>
             </div>
@@ -122,40 +139,42 @@ export const AddUrlModal: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-medium text-slate-700 mb-1">Save File As</label>
+              <label className="block font-medium text-slate-700 mb-1">
+                File Name (Optional)
+              </label>
               <input
                 type="text"
                 value={fileName}
                 onChange={(e) => setFileName(e.target.value)}
-                placeholder="Auto-detect from server"
+                placeholder="Named automatically"
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-blue-600"
               />
             </div>
 
             <div>
-              <label className="block font-medium text-slate-700 mb-1">Parallel Connections</label>
+              <label className="block font-medium text-slate-700 mb-1">Download Speed Mode</label>
               <select
                 value={maxConns}
                 onChange={(e) => setMaxConns(Number(e.target.value))}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-blue-600"
               >
-                <option value={1}>1 Connection</option>
-                <option value={4}>4 Connections</option>
-                <option value={8}>8 Connections (Default)</option>
-                <option value={16}>16 Connections (High Speed)</option>
-                <option value={32}>32 Connections (Max)</option>
+                <option value={1}>Normal Speed (1 Stream)</option>
+                <option value={4}>Fast Boost (4 Streams)</option>
+                <option value={8}>Turbo Boost (8 Streams — Recommended)</option>
+                <option value={16}>Super Fast (16 Streams)</option>
+                <option value={32}>Maximum Speed (32 Streams)</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className="block font-medium text-slate-700 mb-1">Save Directory</label>
+            <label className="block font-medium text-slate-700 mb-1">Save to Folder</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={savePath}
                 onChange={(e) => setSavePath(e.target.value)}
-                placeholder="Default downloads directory"
+                placeholder="Choose where to save this file"
                 className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-blue-600"
               />
               <button
@@ -164,7 +183,7 @@ export const AddUrlModal: React.FC = () => {
                 className="px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 flex items-center gap-1.5 cursor-pointer"
               >
                 <FolderOpen className="w-3.5 h-3.5" />
-                Browse
+                Choose Folder
               </button>
             </div>
           </div>
@@ -187,7 +206,7 @@ export const AddUrlModal: React.FC = () => {
               type="submit"
               className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-xs cursor-pointer"
             >
-              Start Download
+              Download Now
             </button>
           </div>
         </form>
@@ -196,7 +215,7 @@ export const AddUrlModal: React.FC = () => {
   );
 };
 
-// IDM's signature per-download live connection & chunk inspector dialog
+// Friendly Download Details & Speed Boost Window
 export const ProgressDialog: React.FC = () => {
   const {
     inspectingDownloadId,
@@ -223,9 +242,9 @@ export const ProgressDialog: React.FC = () => {
       <div className="w-full max-w-xl bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden text-xs">
         <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
           <div className="flex items-center gap-2 font-semibold text-slate-800 truncate">
-            <Cpu className="w-4 h-4 text-blue-600" />
+            <Gauge className="w-4 h-4 text-blue-600" />
             <span>
-              {pct}% — {item.fileName || item.url}
+              {pct}% Downloaded — {item.fileName || item.url}
             </span>
           </div>
           <button
@@ -237,32 +256,35 @@ export const ProgressDialog: React.FC = () => {
         </div>
 
         <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 gap-2.5 bg-slate-50 p-3 rounded-lg border border-slate-200 font-mono text-[11px]">
+          <div className="grid grid-cols-2 gap-2.5 bg-slate-50 p-3 rounded-lg border border-slate-200 text-[11px]">
             <div className="text-slate-500">
-              Downloaded:{' '}
-              <span className="text-slate-900 font-semibold">{formatBytes(item.downloaded)}</span> /{' '}
-              {item.totalSize > 0 ? formatBytes(item.totalSize) : '--'}
+              Downloaded So Far:{' '}
+              <span className="text-slate-900 font-semibold font-mono">
+                {formatBytes(item.downloaded)}
+              </span>{' '}
+              of {item.totalSize > 0 ? formatBytes(item.totalSize) : 'Unknown'}
             </div>
             <div className="text-slate-500">
-              Transfer Rate:{' '}
-              <span className="text-emerald-600 font-semibold">
+              Current Speed:{' '}
+              <span className="text-emerald-600 font-semibold font-mono">
                 {formatBytes(item.speedBps)}/s
               </span>
             </div>
             <div className="text-slate-500">
-              Time Left: <span className="text-slate-900">{formatETA(eta)}</span>
+              Estimated Time Left:{' '}
+              <span className="text-slate-900 font-semibold font-mono">{formatETA(eta)}</span>
             </div>
             <div className="text-slate-500">
-              Resume Support:{' '}
+              Can Pause & Continue Later:{' '}
               <span className="text-blue-600 font-semibold">
-                {item.acceptRanges ? 'Yes (Byte Ranges)' : 'No'}
+                {item.acceptRanges ? 'Yes' : 'No'}
               </span>
             </div>
           </div>
 
           <div>
             <div className="mb-1.5 text-slate-600 font-medium">
-              Dynamic File Segmentation ({item.chunks?.length || 0} Segments)
+              Speed Boost Progress ({item.chunks?.length || 1} Parallel File Parts)
             </div>
             <ChunkVisualizer
               chunks={item.chunks || []}
@@ -271,13 +293,13 @@ export const ProgressDialog: React.FC = () => {
           </div>
 
           <div className="max-h-44 overflow-auto border border-slate-200 rounded-lg bg-white">
-            <table className="w-full text-left text-[11px] font-mono">
+            <table className="w-full text-left text-[11px]">
               <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
                 <tr>
-                  <th className="py-1.5 px-3">Segment</th>
-                  <th className="py-1.5 px-3">Byte Range</th>
+                  <th className="py-1.5 px-3">Part</th>
+                  <th className="py-1.5 px-3">Part Size</th>
                   <th className="py-1.5 px-3">Downloaded</th>
-                  <th className="py-1.5 px-3">State</th>
+                  <th className="py-1.5 px-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -287,18 +309,18 @@ export const ProgressDialog: React.FC = () => {
                   const isSegDone = done >= segTotal;
                   return (
                     <tr key={c.id}>
-                      <td className="py-1.5 px-3 text-slate-700 font-medium">#{c.id + 1}</td>
-                      <td className="py-1.5 px-3 text-slate-500">
-                        {formatBytes(c.startByte)} → {formatBytes(c.endByte)}
+                      <td className="py-1.5 px-3 text-slate-700 font-medium">Part {c.id + 1}</td>
+                      <td className="py-1.5 px-3 text-slate-500 font-mono">
+                        {formatBytes(segTotal)}
                       </td>
-                      <td className="py-1.5 px-3 text-slate-800">{formatBytes(done)}</td>
+                      <td className="py-1.5 px-3 text-slate-800 font-mono">{formatBytes(done)}</td>
                       <td className="py-1.5 px-3">
                         {c.active ? (
-                          <span className="text-blue-600 font-medium">Receiving data...</span>
+                          <span className="text-blue-600 font-medium">Downloading...</span>
                         ) : isSegDone ? (
-                          <span className="text-emerald-600 font-medium">Completed</span>
+                          <span className="text-emerald-600 font-medium">Finished</span>
                         ) : (
-                          <span className="text-amber-600">Idle / Paused</span>
+                          <span className="text-amber-600">Paused</span>
                         )}
                       </td>
                     </tr>
@@ -314,7 +336,7 @@ export const ProgressDialog: React.FC = () => {
               className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium flex items-center gap-1.5 cursor-pointer"
             >
               <FolderOpen className="w-3.5 h-3.5" />
-              Show in Finder
+              Show in Folder
             </button>
 
             <div className="flex gap-2">
@@ -323,7 +345,7 @@ export const ProgressDialog: React.FC = () => {
                   onClick={() => togglePauseResume(item.id)}
                   className="px-3.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
                 >
-                  {item.status === 'downloading' ? 'Pause' : 'Resume'}
+                  {item.status === 'downloading' ? 'Pause' : 'Continue'}
                 </button>
               )}
               <button
@@ -340,7 +362,7 @@ export const ProgressDialog: React.FC = () => {
   );
 };
 
-// Queue & Scheduler Modal
+// Auto-Schedule Modal
 export const SchedulerModal: React.FC = () => {
   const { isSchedulerOpen, setSchedulerOpen, settings, saveSettings, resumeAll, pauseAll } =
     useDownloadStore();
@@ -370,7 +392,7 @@ export const SchedulerModal: React.FC = () => {
         <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
           <h3 className="font-semibold text-slate-800 flex items-center gap-2">
             <CalendarClock className="w-4 h-4 text-indigo-600" />
-            Queue Manager — Main Queue
+            Auto-Schedule & Batch Downloads
           </h3>
           <button
             onClick={() => setSchedulerOpen(false)}
@@ -383,7 +405,7 @@ export const SchedulerModal: React.FC = () => {
         <div className="p-4 space-y-3.5">
           <div>
             <label className="block font-medium text-slate-700 mb-1">
-              Max Simultaneous Downloads
+              How many files to download at the same time
             </label>
             <input
               type="number"
@@ -402,7 +424,7 @@ export const SchedulerModal: React.FC = () => {
               onChange={(e) => setShutdownWhenDone(e.target.checked)}
               className="rounded border-slate-300"
             />
-            Turn off computer when all active downloads complete
+            Turn off my computer when all downloads finish
           </label>
 
           <div className="flex items-center justify-between pt-3 border-t border-slate-200">
@@ -415,7 +437,7 @@ export const SchedulerModal: React.FC = () => {
                 }}
                 className="px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium cursor-pointer"
               >
-                Start Queue Now
+                Start All Waiting
               </button>
               <button
                 type="button"
@@ -425,7 +447,7 @@ export const SchedulerModal: React.FC = () => {
                 }}
                 className="px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium cursor-pointer"
               >
-                Stop Queue
+                Pause All
               </button>
             </div>
 
@@ -434,7 +456,7 @@ export const SchedulerModal: React.FC = () => {
               onClick={handleSave}
               className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium cursor-pointer"
             >
-              Save
+              Save Changes
             </button>
           </div>
         </div>
@@ -443,7 +465,7 @@ export const SchedulerModal: React.FC = () => {
   );
 };
 
-// Options Modal (Real Speed Limit, Default Connections, Save Path)
+// Settings Modal — Simple, non-technical wording
 export const OptionsModal: React.FC = () => {
   const { isOptionsOpen, setOptionsOpen, settings, saveSettings } = useDownloadStore();
   const [defaultDir, setDefaultDir] = useState(settings.defaultDownloadDir);
@@ -482,7 +504,7 @@ export const OptionsModal: React.FC = () => {
         <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
           <h3 className="font-semibold text-slate-800 flex items-center gap-2">
             <Settings className="w-4 h-4 text-slate-600" />
-            Rappidex Options
+            Preferences & Settings
           </h3>
           <button
             onClick={() => setOptionsOpen(false)}
@@ -495,7 +517,7 @@ export const OptionsModal: React.FC = () => {
         <div className="p-4 space-y-3.5">
           <div>
             <label className="block font-medium text-slate-700 mb-1">
-              Default Download Directory
+              Where to save downloaded files
             </label>
             <div className="flex gap-2">
               <input
@@ -509,31 +531,31 @@ export const OptionsModal: React.FC = () => {
                 onClick={handleBrowse}
                 className="px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 cursor-pointer"
               >
-                Browse
+                Choose Folder
               </button>
             </div>
           </div>
 
           <div>
             <label className="block font-medium text-slate-700 mb-1">
-              Default Parallel Connections per Task
+              Default Download Speed Mode
             </label>
             <select
               value={defaultMaxConns}
               onChange={(e) => setDefaultMaxConns(Number(e.target.value))}
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900"
             >
-              <option value={1}>1 Connection</option>
-              <option value={4}>4 Connections</option>
-              <option value={8}>8 Connections</option>
-              <option value={16}>16 Connections</option>
-              <option value={32}>32 Connections</option>
+              <option value={1}>Normal Speed</option>
+              <option value={4}>Fast Boost (4x)</option>
+              <option value={8}>Turbo Boost (8x — Recommended)</option>
+              <option value={16}>Super Fast (16x)</option>
+              <option value={32}>Maximum Speed (32x)</option>
             </select>
           </div>
 
           <div>
             <label className="block font-medium text-slate-700 mb-1">
-              Global Speed Limiter (KB/s, 0 = Unlimited)
+              Maximum Download Speed Limit (KB/s — leave 0 for Unlimited)
             </label>
             <input
               type="number"
@@ -557,7 +579,7 @@ export const OptionsModal: React.FC = () => {
               onClick={handleSave}
               className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium cursor-pointer"
             >
-              Save Settings
+              Save Changes
             </button>
           </div>
         </div>

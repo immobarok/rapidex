@@ -16,29 +16,29 @@ export const StatusBar: React.FC = () => {
       <div className="flex items-center gap-4">
         <span className="flex items-center gap-1.5">
           <Activity className="w-3.5 h-3.5 text-blue-600" />
-          Active: <strong className="text-slate-900">{activeCount}</strong>
+          Downloading Now: <strong className="text-slate-900">{activeCount}</strong>
         </span>
         <span className="flex items-center gap-1.5">
           <HardDrive className="w-3.5 h-3.5 text-slate-400" />
-          Total Downloads: <strong className="text-slate-900">{downloads.length}</strong>
+          All Files: <strong className="text-slate-900">{downloads.length}</strong>
         </span>
         {settings.defaultDownloadDir && (
           <span className="flex items-center gap-1 text-slate-400 truncate max-w-md">
             <Folder className="w-3 h-3" />
-            {settings.defaultDownloadDir}
+            Saving to: {settings.defaultDownloadDir}
           </span>
         )}
       </div>
 
       <div className="flex items-center gap-4 font-mono">
         {settings.speedLimitBps > 0 && (
-          <span className="text-amber-600">
-            Limit: {formatBytes(settings.speedLimitBps)}/s
+          <span className="text-amber-600 font-sans">
+            Speed Limit: {formatBytes(settings.speedLimitBps)}/s
           </span>
         )}
         <span className="flex items-center gap-1.5 font-semibold text-emerald-600">
           <Wifi className="w-3.5 h-3.5" />
-          {formatBytes(totalSpeed)}/s
+          Download Speed: {formatBytes(totalSpeed)}/s
         </span>
       </div>
     </footer>
