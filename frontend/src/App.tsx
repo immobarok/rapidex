@@ -6,6 +6,9 @@ import { DownloadTable } from './components/table/DownloadTable';
 import {
   AddUrlModal,
   ProgressDialog,
+  DownloadCompleteDialog,
+  BatchDownloadModal,
+  RefreshUrlModal,
   SchedulerModal,
   OptionsModal,
 } from './components/dialogs';
@@ -33,9 +36,12 @@ export default function App() {
       </div>
       <StatusBar />
 
-      {/* Real Wails-bound Modals & Live Connection Inspector */}
+      {/* Complete IDM Modal Suite */}
       <AddUrlModal />
       <ProgressDialog />
+      <DownloadCompleteDialog />
+      <BatchDownloadModal />
+      <RefreshUrlModal />
       <SchedulerModal />
       <OptionsModal />
     </div>
