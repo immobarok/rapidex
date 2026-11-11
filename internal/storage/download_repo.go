@@ -9,7 +9,7 @@ import (
 	"rappidex/internal/models"
 )
 
-// DownloadRepo persists download metadata and chunk byte-offset checkpoints to disk.
+// DownloadRepo persists the download list (including part progress) so downloads survive restarts.
 type DownloadRepo struct {
 	mu       sync.Mutex
 	filePath string
@@ -17,9 +17,7 @@ type DownloadRepo struct {
 
 func NewDownloadRepo(dataDir string) *DownloadRepo {
 	_ = os.MkdirAll(dataDir, 0o755)
-	return &DownloadRepo{
-		filePath: filepath.Join(dataDir, "downloads.json"),
-	}
+	return &DownloadRepo{filePath: filepath.Join(dataDir, "downloads.json")}
 }
 
 func (r *DownloadRepo) LoadAll() ([]*models.DownloadItem, error) {
@@ -33,7 +31,6 @@ func (r *DownloadRepo) LoadAll() ([]*models.DownloadItem, error) {
 		}
 		return nil, err
 	}
-
 	var items []*models.DownloadItem
 	if err := json.Unmarshal(data, &items); err != nil {
 		return []*models.DownloadItem{}, nil
@@ -49,5 +46,15 @@ func (r *DownloadRepo) SaveAll(items []*models.DownloadItem) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(r.filePath, data, 0o644)
+	// 0600: the list can contain cookies / login headers.
+	return writeFileAtomic(r.filePath, data, 0o600)
+}
+
+// writeFileAtomic writes to a temp file and renames it, so a crash never leaves a half-written file.
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, perm); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
