@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Link2, Cpu } from 'lucide-react';
+import { X, Link2, Cpu, CalendarClock, Settings } from 'lucide-react';
 import { useDownloadStore } from '../../store/useDownloadStore';
 import { formatBytes, formatETA } from '../../utils/formatters';
 import { ChunkVisualizer } from '../widgets/ChunkVisualizer';
@@ -154,7 +154,6 @@ export const ProgressDialog: React.FC = () => {
             <ChunkVisualizer chunks={item.chunks} />
           </div>
 
-          {/* Per-connection byte progress table like IDM */}
           <div className="max-h-40 overflow-auto border border-slate-800 rounded-lg bg-slate-950">
             <table className="w-full text-left text-[11px] font-mono">
               <thead className="bg-slate-900 text-slate-400 border-b border-slate-800">
@@ -196,6 +195,129 @@ export const ProgressDialog: React.FC = () => {
               className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white"
             >
               Close Window
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// IDM Queue & Scheduler Modal
+export const SchedulerModal: React.FC = () => {
+  const { isSchedulerOpen, setSchedulerOpen } = useDownloadStore();
+  const [maxConcurrent, setMaxConcurrent] = useState(4);
+  const [shutdownWhenDone, setShutdownWhenDone] = useState(false);
+
+  if (!isSchedulerOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden text-xs">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+          <h3 className="font-semibold text-slate-200 flex items-center gap-2">
+            <CalendarClock className="w-4 h-4 text-sky-400" />
+            Queue & Scheduler — Main Queue
+          </h3>
+          <button
+            onClick={() => setSchedulerOpen(false)}
+            className="text-slate-400 hover:text-slate-200"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <div>
+            <label className="block text-slate-400 mb-1">Max Simultaneous Downloads in Queue</label>
+            <input
+              type="number"
+              min={1}
+              max={16}
+              value={maxConcurrent}
+              onChange={(e) => setMaxConcurrent(Number(e.target.value))}
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-md text-slate-100"
+            />
+          </div>
+
+          <label className="flex items-center gap-2 text-slate-300 cursor-pointer pt-1">
+            <input
+              type="checkbox"
+              checked={shutdownWhenDone}
+              onChange={(e) => setShutdownWhenDone(e.target.checked)}
+              className="rounded border-slate-700 bg-slate-950"
+            />
+            Turn off computer when all downloads complete
+          </label>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+            <button
+              onClick={() => setSchedulerOpen(false)}
+              className="px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-medium"
+            >
+              Apply Queue Rules
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// IDM Options Modal (Speed Limit, Default Connections, Save Path)
+export const OptionsModal: React.FC = () => {
+  const { isOptionsOpen, setOptionsOpen } = useDownloadStore();
+  const [speedLimitMB, setSpeedLimitMB] = useState(0);
+  const [defaultDir, setDefaultDir] = useState('~/Downloads/Rappidex');
+
+  if (!isOptionsOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden text-xs">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+          <h3 className="font-semibold text-slate-200 flex items-center gap-2">
+            <Settings className="w-4 h-4 text-slate-400" />
+            Rappidex Options
+          </h3>
+          <button
+            onClick={() => setOptionsOpen(false)}
+            className="text-slate-400 hover:text-slate-200"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <div>
+            <label className="block text-slate-400 mb-1">Default Download Directory</label>
+            <input
+              type="text"
+              value={defaultDir}
+              onChange={(e) => setDefaultDir(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-md text-slate-100"
+            />
+          </div>
+
+          <div>
+            <label className="block text-slate-400 mb-1">
+              Global Speed Limiter (MB/s, 0 = Unlimited)
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={speedLimitMB}
+              onChange={(e) => setSpeedLimitMB(Number(e.target.value))}
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-md text-slate-100"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+            <button
+              onClick={() => setOptionsOpen(false)}
+              className="px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white font-medium"
+            >
+              Save Settings
             </button>
           </div>
         </div>

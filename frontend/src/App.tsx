@@ -3,7 +3,12 @@ import { Sidebar } from './components/layout/Sidebar';
 import { Toolbar } from './components/layout/Toolbar';
 import { StatusBar } from './components/layout/StatusBar';
 import { DownloadTable } from './components/table/DownloadTable';
-import { AddUrlModal, ProgressDialog } from './components/dialogs';
+import {
+  AddUrlModal,
+  ProgressDialog,
+  SchedulerModal,
+  OptionsModal,
+} from './components/dialogs';
 
 export default function App() {
   return (
@@ -18,6 +23,8 @@ export default function App() {
       {/* IDM Modals & Per-Download Inspector */}
       <AddUrlModal />
       <ProgressDialog />
+      <SchedulerModal />
+      <OptionsModal />
     </div>
   );
 }

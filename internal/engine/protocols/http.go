@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+type HTTPClientWrapper struct {
+	Client *http.Client
+}
+
 // NewHTTPClient creates an HTTP client tuned for high-throughput multi-connection downloads.
 func NewHTTPClient() *http.Client {
 	transport := &http.Transport{
@@ -17,4 +21,3 @@ func NewHTTPClient() *http.Client {
 		Transport: transport,
 	}
 }
-
