@@ -19,10 +19,23 @@ type ProbeResult struct {
 	AcceptRanges bool   `json:"acceptRanges"`
 }
 
-// Probe inspects a URL using a lightweight Range GET ("bytes=0-0") first,
-// which reliably follows HTTP->HTTPS redirects, extracts total file size from Content-Range,
-// and verifies whether the server supports multi-connection byte ranges.
+// Probe inspects a URL (including YouTube links) using a lightweight Range GET ("bytes=0-0"),
+// resolves the real filename with extension, and checks multi-connection byte range support.
 func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
+	var presetFileName string
+	var presetSize int64
+
+	// 1. If the user pasted a YouTube video link, resolve the direct MP4 video stream first!
+	if protocols.IsYouTubeURL(rawURL) {
+		ytInfo, err := protocols.ExtractYouTubeStream(rawURL)
+		if err != nil {
+			return nil, err
+		}
+		rawURL = ytInfo.StreamURL
+		presetFileName = ytInfo.FileName
+		presetSize = ytInfo.TotalSize
+	}
+
 	client := protocols.NewHTTPClient()
 
 	getReq, err := http.NewRequest(http.MethodGet, rawURL, nil)
@@ -49,6 +62,7 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 	}
 
 	finalURL := getResp.Request.URL.String()
+	contentType := getResp.Header.Get("Content-Type")
 	totalSize := getResp.ContentLength
 	acceptRanges := getResp.StatusCode == http.StatusPartialContent || strings.EqualFold(getResp.Header.Get("Accept-Ranges"), "bytes")
 
@@ -62,7 +76,11 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 		}
 	}
 
-	// If server ignored Range and didn't send Content-Length on GET, try HEAD as fallback
+	if totalSize <= 1 && presetSize > 0 {
+		totalSize = presetSize
+	}
+
+	// Fallback HEAD check if Content-Length was still 1 or unknown
 	if totalSize <= 1 {
 		headReq, headErr := http.NewRequest(http.MethodHead, finalURL, nil)
 		if headErr == nil {
@@ -79,10 +97,17 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 		}
 	}
 
+	fileName := presetFileName
+	if fileName == "" {
+		fileName = netutil.ExtractFilename(finalURL, getResp.Header.Get("Content-Disposition"), contentType)
+	} else {
+		fileName = netutil.EnsureExtension(fileName, contentType)
+	}
+
 	return &ProbeResult{
 		URL:          finalURL,
-		FileName:     netutil.ExtractFilename(finalURL, getResp.Header.Get("Content-Disposition")),
-		ContentType:  getResp.Header.Get("Content-Type"),
+		FileName:     fileName,
+		ContentType:  contentType,
 		TotalSize:    totalSize,
 		AcceptRanges: acceptRanges,
 	}, nil

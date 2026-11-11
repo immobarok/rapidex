@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"rappidex/internal/models"
+	"rappidex/internal/pkg/netutil"
 	"rappidex/internal/storage"
 )
 
@@ -97,16 +98,21 @@ func (m *Manager) AddDownload(url, savePath, fileName string, maxConns int, head
 	var totalSize int64
 	var acceptRanges bool
 
-	// Probe URL upfront to get exact file size, redirect URL, filename, and Range support
-	if probe, err := Probe(url, headers); err == nil {
+	// Probe URL upfront to resolve YouTube/redirect URL, exact file size, filename + extension, and Range support
+	probe, probeErr := Probe(url, headers)
+	if probeErr == nil && probe != nil {
 		if probe.URL != "" {
 			url = probe.URL
 		}
 		if fileName == "" {
 			fileName = probe.FileName
+		} else {
+			fileName = netutil.EnsureExtension(fileName, probe.ContentType)
 		}
 		totalSize = probe.TotalSize
 		acceptRanges = probe.AcceptRanges
+	} else if fileName == "" {
+		fileName = netutil.ExtractFilename(url, "", "")
 	}
 
 	categoryID := m.db.Categories().ResolveCategory(fileName)
