@@ -4,6 +4,11 @@ import (
 	"embed"
 	"log"
 
+	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
+
 	"rappidex/internal/app"
 	"rappidex/internal/engine"
 	"rappidex/internal/handlers"
@@ -12,10 +17,11 @@ import (
 	"rappidex/internal/storage"
 )
 
+//go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
-	// 1. Initialize Storage (SQLite)
+	// 1. Initialize Storage
 	db, err := storage.NewDatabase()
 	if err != nil {
 		log.Fatalf("failed to init storage: %v", err)
@@ -38,12 +44,35 @@ func main() {
 	categoryHandler := handlers.NewCategoryHandler(db)
 	settingsHandler := handlers.NewSettingsHandler(db, eng)
 
-	_ = application
-	_ = downloadHandler
-	_ = queueHandler
-	_ = categoryHandler
-	_ = settingsHandler
-	_ = assets
-
-	log.Println("Rappidex core services initialized.")
+	// 6. Launch Native Wails Desktop Window
+	err = wails.Run(&options.App{
+		Title:     "Rappidex Download Manager",
+		Width:     1080,
+		Height:    680,
+		MinWidth:  860,
+		MinHeight: 520,
+		AssetServer: &assetserver.Options{
+			Assets: assets,
+		},
+		BackgroundColour: &options.RGBA{R: 2, G: 6, B: 23, A: 1},
+		OnStartup:        application.Startup,
+		OnShutdown:       application.Shutdown,
+		Bind: []interface{}{
+			application,
+			downloadHandler,
+			queueHandler,
+			categoryHandler,
+			settingsHandler,
+		},
+		Mac: &mac.Options{
+			TitleBar: mac.TitleBarDefault(),
+			About: &mac.AboutInfo{
+				Title:   "Rappidex Download Manager",
+				Message: "High-speed multi-connection download manager built with Go & Wails.",
+			},
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 }
