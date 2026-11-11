@@ -55,3 +55,4 @@ func TestMultiConnectionDownloadAndWorkStealing(t *testing.T) {
 		t.Fatalf("downloaded file mismatch: got %d bytes, want %d bytes", len(downloadedBytes), len(payload))
 	}
 }
+
