@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"sync"
-	"sync/atomic"
 
 	"rappidex/internal/models"
 )
@@ -18,7 +17,7 @@ type Worker struct {
 	URL           string
 	Headers       map[string]string
 	AcceptRanges  bool
-	Chunk         *models.ChunkState
+	GetChunk      func() *models.ChunkState
 	ChunkMu       *sync.Mutex
 	File          *os.File
 	Limiter       *BandwidthLimiter
@@ -28,14 +27,15 @@ type Worker struct {
 
 func (w *Worker) Run(ctx context.Context) error {
 	w.ChunkMu.Lock()
-	startPos := w.Chunk.CurrentPos
-	endPos := w.Chunk.EndByte
-	w.Chunk.Active = true
+	ch := w.GetChunk()
+	startPos := ch.CurrentPos
+	endPos := ch.EndByte
+	ch.Active = true
 	w.ChunkMu.Unlock()
 
 	defer func() {
 		w.ChunkMu.Lock()
-		w.Chunk.Active = false
+		w.GetChunk().Active = false
 		w.ChunkMu.Unlock()
 	}()
 
@@ -47,6 +47,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 	for k, v := range w.Headers {
 		req.Header.Set(k, v)
 	}
@@ -81,8 +82,9 @@ func (w *Worker) Run(ctx context.Context) error {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
 			w.ChunkMu.Lock()
-			curr := w.Chunk.CurrentPos
-			dynamicEnd := w.Chunk.EndByte
+			chunk := w.GetChunk()
+			curr := chunk.CurrentPos
+			dynamicEnd := chunk.EndByte
 			if dynamicEnd > 0 && curr+int64(n)-1 > dynamicEnd {
 				allowed := dynamicEnd - curr + 1
 				if allowed <= 0 {
@@ -91,7 +93,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				}
 				n = int(allowed)
 			}
-			w.Chunk.CurrentPos += int64(n)
+			chunk.CurrentPos += int64(n)
 			w.ChunkMu.Unlock()
 
 			if w.Limiter != nil {
@@ -118,9 +120,4 @@ func (w *Worker) Run(ctx context.Context) error {
 			return readErr
 		}
 	}
-}
-
-// AtomicCounter helps track real-time speed across workers.
-type AtomicCounter struct {
-	val atomic.Int64
 }

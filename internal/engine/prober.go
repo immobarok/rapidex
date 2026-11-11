@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,7 +27,7 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Rappidex/1.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
@@ -34,7 +35,7 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 	resp, err := client.Do(req)
 	if err == nil {
 		defer resp.Body.Close()
-		if resp.StatusCode >= 200 && resp.StatusCode < 400 && resp.ContentLength > 0 {
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 && resp.ContentLength > 0 {
 			finalURL := resp.Request.URL.String()
 			return &ProbeResult{
 				URL:          finalURL,
@@ -51,7 +52,7 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	getReq.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Rappidex/1.0")
+	getReq.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 	for k, v := range headers {
 		getReq.Header.Set(k, v)
 	}
@@ -62,6 +63,10 @@ func Probe(rawURL string, headers map[string]string) (*ProbeResult, error) {
 		return nil, err
 	}
 	defer getResp.Body.Close()
+
+	if getResp.StatusCode >= 400 {
+		return nil, fmt.Errorf("server returned HTTP %d (%s)", getResp.StatusCode, http.StatusText(getResp.StatusCode))
+	}
 
 	finalURL := getResp.Request.URL.String()
 	totalSize := getResp.ContentLength

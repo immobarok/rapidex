@@ -16,11 +16,11 @@ import (
 
 // Manager orchestrates all active, paused, and completed download tasks.
 type Manager struct {
-	mu          sync.RWMutex
-	db          *storage.Database
-	tasks       map[string]*Task
-	limiter     *BandwidthLimiter
-	onUpdate    func(items []*models.DownloadItem)
+	mu       sync.RWMutex
+	db       *storage.Database
+	tasks    map[string]*Task
+	limiter  *BandwidthLimiter
+	onUpdate func(items []*models.DownloadItem)
 }
 
 func NewManager(db *storage.Database) *Manager {
@@ -94,26 +94,36 @@ func (m *Manager) AddDownload(url, savePath, fileName string, maxConns int, head
 		savePath = settings.DefaultDownloadDir
 	}
 
-	// Probe synchronously or resolve filename so UI gets immediate file metadata
-	if fileName == "" {
-		if probe, err := Probe(url, headers); err == nil {
+	var totalSize int64
+	var acceptRanges bool
+
+	// Probe URL upfront to get exact file size, redirect URL, filename, and Range support
+	if probe, err := Probe(url, headers); err == nil {
+		if probe.URL != "" {
+			url = probe.URL
+		}
+		if fileName == "" {
 			fileName = probe.FileName
 		}
+		totalSize = probe.TotalSize
+		acceptRanges = probe.AcceptRanges
 	}
 
 	categoryID := m.db.Categories().ResolveCategory(fileName)
 
 	item := &models.DownloadItem{
-		ID:         fmt.Sprintf("dl_%d", time.Now().UnixNano()),
-		URL:        url,
-		FileName:   fileName,
-		SavePath:   savePath,
-		CategoryID: categoryID,
-		QueueID:    "main",
-		Status:     models.StatusQueued,
-		MaxConns:   maxConns,
-		Headers:    headers,
-		CreatedAt:  time.Now(),
+		ID:           fmt.Sprintf("dl_%d", time.Now().UnixNano()),
+		URL:          url,
+		FileName:     fileName,
+		SavePath:     savePath,
+		CategoryID:   categoryID,
+		QueueID:      "main",
+		TotalSize:    totalSize,
+		AcceptRanges: acceptRanges,
+		Status:       models.StatusQueued,
+		MaxConns:     maxConns,
+		Headers:      headers,
+		CreatedAt:    time.Now(),
 	}
 
 	task := NewTask(item, m.limiter, m.persistState)

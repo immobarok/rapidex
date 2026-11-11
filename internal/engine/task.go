@@ -65,7 +65,7 @@ func (t *Task) Start() {
 func (t *Task) run(ctx context.Context) {
 	// 1. Probe URL if metadata is not yet resolved
 	t.mu.Lock()
-	needProbe := t.Item.TotalSize == 0 || t.Item.FileName == ""
+	needProbe := t.Item.TotalSize <= 0 || t.Item.FileName == ""
 	rawURL := t.Item.URL
 	headers := t.Item.Headers
 	t.mu.Unlock()
@@ -77,6 +77,9 @@ func (t *Task) run(ctx context.Context) {
 			return
 		}
 		t.mu.Lock()
+		if probe.URL != "" {
+			t.Item.URL = probe.URL
+		}
 		if t.Item.FileName == "" {
 			t.Item.FileName = probe.FileName
 		}
@@ -134,6 +137,10 @@ func (t *Task) run(ctx context.Context) {
 	numChunks := len(t.Item.Chunks)
 	t.mu.Unlock()
 
+	if t.onCheckpoint != nil {
+		t.onCheckpoint()
+	}
+
 	// 4. Start speed meter ticker
 	speedDone := make(chan struct{})
 	go t.measureSpeed(ctx, speedDone)
@@ -151,7 +158,6 @@ func (t *Task) run(ctx context.Context) {
 			defer wg.Done()
 			for {
 				t.mu.Lock()
-				chunkPtr := &t.Item.Chunks[idx]
 				urlStr := t.Item.URL
 				hdrs := t.Item.Headers
 				acceptRanges := t.Item.AcceptRanges
@@ -162,11 +168,13 @@ func (t *Task) run(ctx context.Context) {
 					URL:          urlStr,
 					Headers:      hdrs,
 					AcceptRanges: acceptRanges,
-					Chunk:        chunkPtr,
-					ChunkMu:      &t.mu,
-					File:         file,
-					Limiter:      t.limiter,
-					Client:       httpClient,
+					GetChunk: func() *models.ChunkState {
+						return &t.Item.Chunks[idx]
+					},
+					ChunkMu: &t.mu,
+					File:    file,
+					Limiter: t.limiter,
+					Client:  httpClient,
 					OnBytesLoaded: func(n int64) {
 						t.bytesDelta.Add(n)
 						total := t.downloaded.Add(n)
