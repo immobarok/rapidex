@@ -7,11 +7,11 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 select-none overflow-hidden antialiased;
+    @apply bg-white text-slate-900 select-none overflow-hidden antialiased;
   }
 }
 
-/* Custom sleek desktop scrollbars */
+/* Clean light desktop scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -20,9 +20,9 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
+  background: rgba(100, 116, 139, 0.25);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.35);
+  background: rgba(100, 116, 139, 0.45);
 }

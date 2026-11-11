@@ -14,7 +14,7 @@ type SniffPayload struct {
 	Headers   map[string]string `json:"headers"`
 }
 
-// handleSniffedDownload receives intercepted download links + session cookies from the browser.
+// handleSniffedDownload receives intercepted download links + session cookies from the browser and starts downloading.
 func (s *ExtensionServer) handleSniffedDownload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -40,8 +40,13 @@ func (s *ExtensionServer) handleSniffedDownload(w http.ResponseWriter, r *http.R
 		payload.Headers["User-Agent"] = payload.UserAgent
 	}
 
+	item, err := s.engine.AddDownload(payload.URL, "", payload.FileName, 0, payload.Headers)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
-	_, _ = w.Write([]byte(`{"accepted":true}`))
+	_ = json.NewEncoder(w).Encode(item)
 }
-

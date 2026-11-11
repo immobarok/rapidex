@@ -30,33 +30,44 @@ export const Sidebar: React.FC = () => {
   const { activeCategory, setActiveCategory, downloads } = useDownloadStore();
 
   return (
-    <aside className="w-56 bg-slate-900/60 border-r border-slate-800 flex flex-col justify-between p-3 text-xs">
+    <aside className="w-56 bg-slate-50/70 border-r border-slate-200 flex flex-col justify-between p-3 text-xs">
       <div className="space-y-5">
         {/* Categories */}
         <div>
-          <div className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
             Categories
           </div>
           <ul className="space-y-0.5">
             {CATEGORIES.map(({ id, label, icon: Icon }) => {
               const isActive = activeCategory === id;
+              const count =
+                id === 'all'
+                  ? downloads.length
+                  : downloads.filter((d) => d.categoryId === id).length;
+
               return (
                 <li key={id}>
                   <button
                     onClick={() => setActiveCategory(id)}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md transition ${
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition cursor-pointer ${
                       isActive
-                        ? 'bg-blue-600/15 text-blue-400 font-medium'
-                        : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                        ? 'bg-blue-50 text-blue-600 font-semibold border border-blue-200/70'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
                     <span className="flex items-center gap-2">
                       <Icon className="w-3.5 h-3.5" />
                       {label}
                     </span>
-                    {id === 'all' && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
-                        {downloads.length}
+                    {count > 0 && (
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${
+                          isActive
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-slate-200/70 text-slate-600'
+                        }`}
+                      >
+                        {count}
                       </span>
                     )}
                   </button>
@@ -68,7 +79,7 @@ export const Sidebar: React.FC = () => {
 
         {/* Status Filters */}
         <div>
-          <div className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
             Status
           </div>
           <ul className="space-y-0.5">
@@ -78,10 +89,10 @@ export const Sidebar: React.FC = () => {
                 <li key={id}>
                   <button
                     onClick={() => setActiveCategory(id)}
-                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md transition ${
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition cursor-pointer ${
                       isActive
-                        ? 'bg-blue-600/15 text-blue-400 font-medium'
-                        : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                        ? 'bg-blue-50 text-blue-600 font-semibold border border-blue-200/70'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
@@ -95,20 +106,24 @@ export const Sidebar: React.FC = () => {
 
         {/* Queues */}
         <div>
-          <div className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
             Queues
           </div>
           <ul className="space-y-0.5">
             <li>
               <button
                 onClick={() => setActiveCategory('queue:main')}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-slate-400 hover:bg-slate-800/60 hover:text-slate-200 transition"
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition cursor-pointer ${
+                  activeCategory === 'queue:main'
+                    ? 'bg-blue-50 text-blue-600 font-semibold border border-blue-200/70'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
               >
                 <span className="flex items-center gap-2">
-                  <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
                   Main Queue
                 </span>
-                <span className="w-2 h-2 rounded-full bg-emerald-400" title="Running" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500" title="Active" />
               </button>
             </li>
           </ul>
@@ -116,12 +131,12 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Browser Integration Indicator */}
-      <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800/80 flex items-center justify-between">
+      <div className="p-2.5 rounded-lg bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
         <div>
-          <div className="text-[11px] font-medium text-slate-300">Browser Sniffer</div>
-          <div className="text-[10px] text-slate-500">Port 41920 Active</div>
+          <div className="text-[11px] font-semibold text-slate-700">Browser Sniffer</div>
+          <div className="text-[10px] text-slate-400">127.0.0.1:41920</div>
         </div>
-        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="w-2 h-2 rounded-full bg-emerald-500" />
       </div>
     </aside>
   );

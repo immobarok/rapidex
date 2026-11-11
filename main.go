@@ -44,17 +44,17 @@ func main() {
 	categoryHandler := handlers.NewCategoryHandler(db)
 	settingsHandler := handlers.NewSettingsHandler(db, eng)
 
-	// 6. Launch Native Wails Desktop Window
+	// 6. Launch Native Wails Desktop Window (Clean White Theme)
 	err = wails.Run(&options.App{
 		Title:     "Rappidex Download Manager",
-		Width:     1080,
-		Height:    680,
-		MinWidth:  860,
-		MinHeight: 520,
+		Width:     1120,
+		Height:    700,
+		MinWidth:  880,
+		MinHeight: 540,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 2, G: 6, B: 23, A: 1},
+		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnStartup:        application.Startup,
 		OnShutdown:       application.Shutdown,
 		Bind: []interface{}{
@@ -66,6 +66,7 @@ func main() {
 		},
 		Mac: &mac.Options{
 			TitleBar: mac.TitleBarDefault(),
+			Appearance: mac.NSAppearanceNameAqua,
 			About: &mac.AboutInfo{
 				Title:   "Rappidex Download Manager",
 				Message: "High-speed multi-connection download manager built with Go & Wails.",

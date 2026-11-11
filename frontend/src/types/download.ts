@@ -29,5 +29,7 @@ export interface DownloadItem {
   status: DownloadStatus;
   maxConns: number;
   chunks: ChunkState[];
+  errorMessage?: string;
+  createdAt?: string;
+  completedAt?: string;
 }
-

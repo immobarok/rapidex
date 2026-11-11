@@ -1,29 +1,42 @@
 import React from 'react';
-import { Activity, HardDrive, Wifi } from 'lucide-react';
+import { Activity, HardDrive, Wifi, Folder } from 'lucide-react';
 import { useDownloadStore } from '../../store/useDownloadStore';
 import { formatBytes } from '../../utils/formatters';
 
 export const StatusBar: React.FC = () => {
-  const { downloads } = useDownloadStore();
+  const { downloads, settings } = useDownloadStore();
 
-  const activeCount = downloads.filter((d) => d.status === 'downloading').length;
+  const activeCount = downloads.filter(
+    (d) => d.status === 'downloading' || d.status === 'probing'
+  ).length;
   const totalSpeed = downloads.reduce((acc, d) => acc + (d.speedBps || 0), 0);
 
   return (
-    <footer className="h-7 px-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+    <footer className="h-7 px-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600">
       <div className="flex items-center gap-4">
         <span className="flex items-center gap-1.5">
-          <Activity className="w-3.5 h-3.5 text-blue-400" />
-          Active Downloads: <strong className="text-slate-200">{activeCount}</strong>
+          <Activity className="w-3.5 h-3.5 text-blue-600" />
+          Active: <strong className="text-slate-900">{activeCount}</strong>
         </span>
         <span className="flex items-center gap-1.5">
-          <HardDrive className="w-3.5 h-3.5 text-slate-500" />
-          Total Tasks: <strong className="text-slate-200">{downloads.length}</strong>
+          <HardDrive className="w-3.5 h-3.5 text-slate-400" />
+          Total Downloads: <strong className="text-slate-900">{downloads.length}</strong>
         </span>
+        {settings.defaultDownloadDir && (
+          <span className="flex items-center gap-1 text-slate-400 truncate max-w-md">
+            <Folder className="w-3 h-3" />
+            {settings.defaultDownloadDir}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-4 font-mono">
-        <span className="flex items-center gap-1.5 text-emerald-400">
+        {settings.speedLimitBps > 0 && (
+          <span className="text-amber-600">
+            Limit: {formatBytes(settings.speedLimitBps)}/s
+          </span>
+        )}
+        <span className="flex items-center gap-1.5 font-semibold text-emerald-600">
           <Wifi className="w-3.5 h-3.5" />
           {formatBytes(totalSpeed)}/s
         </span>
@@ -31,4 +44,3 @@ export const StatusBar: React.FC = () => {
     </footer>
   );
 };
-

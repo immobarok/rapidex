@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Toolbar } from './components/layout/Toolbar';
 import { StatusBar } from './components/layout/StatusBar';
@@ -9,10 +9,23 @@ import {
   SchedulerModal,
   OptionsModal,
 } from './components/dialogs';
+import { useDownloadStore } from './store/useDownloadStore';
 
 export default function App() {
+  const initBackend = useDownloadStore((s) => s.initBackend);
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    initBackend().then((fn) => {
+      cleanup = fn;
+    });
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, [initBackend]);
+
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100">
+    <div className="flex flex-col h-screen w-screen bg-white text-slate-900">
       <Toolbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
@@ -20,7 +33,7 @@ export default function App() {
       </div>
       <StatusBar />
 
-      {/* IDM Modals & Per-Download Inspector */}
+      {/* Real Wails-bound Modals & Live Connection Inspector */}
       <AddUrlModal />
       <ProgressDialog />
       <SchedulerModal />

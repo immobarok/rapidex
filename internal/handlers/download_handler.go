@@ -5,7 +5,7 @@ import (
 	"rappidex/internal/models"
 )
 
-// DownloadHandler exposes download operations to the Wails frontend.
+// DownloadHandler exposes real download operations to the Wails frontend.
 type DownloadHandler struct {
 	engine *engine.Manager
 }
@@ -30,6 +30,14 @@ func (h *DownloadHandler) ResumeDownload(id string) error {
 	return h.engine.Resume(id)
 }
 
+func (h *DownloadHandler) PauseAll() {
+	h.engine.PauseAll()
+}
+
+func (h *DownloadHandler) ResumeAll() {
+	h.engine.ResumeAll()
+}
+
 func (h *DownloadHandler) CancelDownload(id string, deleteFile bool) error {
 	return h.engine.Cancel(id, deleteFile)
 }
@@ -38,3 +46,6 @@ func (h *DownloadHandler) ListDownloads() []*models.DownloadItem {
 	return h.engine.List()
 }
 
+func (h *DownloadHandler) OpenFileLocation(id string) error {
+	return h.engine.OpenFileLocation(id)
+}
